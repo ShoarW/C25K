@@ -584,15 +584,19 @@ footer {
 }
 
 .form-group {
-    margin-bottom: 1.25rem;
+    margin-bottom: 15px;
 }
 
-.form-group label {
+.setting-description {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 2px;
+    font-style: italic;
+}
+
+label {
     display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #495057;
-    font-size: 0.95rem;
+    margin-bottom: 5px;
 }
 
 .form-group input, .form-group select {

@@ -447,6 +447,7 @@ const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 const notificationToggle = document.getElementById('notificationToggle');
+const backgroundNotificationsToggle = document.getElementById('backgroundNotificationsToggle');
 const themeToggle = document.getElementById('themeToggle');
 const countdownToggle = document.getElementById('countdownToggle');
 const notification = document.getElementById('notification');
@@ -479,6 +480,7 @@ let activeOscillators = []; // Track all active oscillators
 let isTestWorkout = false;
 let settings = {
     notifications: localStorage.getItem('c25k_notifications') || 'on',
+    backgroundNotifications: localStorage.getItem('c25k_backgroundNotifications') || 'off',
     theme: localStorage.getItem('c25k_theme') || 'light',
     countdown: localStorage.getItem('c25k_countdown') || 'on',
     keepAwake: localStorage.getItem('c25k_keepAwake') || 'off'
@@ -486,6 +488,8 @@ let settings = {
 let wakeLock = null;
 let achievements = [];
 let earnedAchievements = [];
+let notificationPermission = 'default';
+let swRegistration = null;
 
 // Define achievements
 const availableAchievements = [
@@ -595,6 +599,7 @@ function releaseWakeLock() {
 // Initialize settings from local storage or set defaults
 function applySettings() {
     notificationToggle.value = settings.notifications;
+    backgroundNotificationsToggle.value = settings.backgroundNotifications;
     themeToggle.value = settings.theme;
     countdownToggle.value = settings.countdown;
     keepAwakeToggle.value = settings.keepAwake;
@@ -612,19 +617,31 @@ function applySettings() {
     } else {
         releaseWakeLock();
     }
+    
+    // Check notification permission if background notifications are enabled
+    if (settings.backgroundNotifications === 'on') {
+        checkNotificationPermission();
+    }
 }
 
 // Save settings
 function saveSettings() {
     settings.notifications = notificationToggle.value;
+    settings.backgroundNotifications = backgroundNotificationsToggle.value;
     settings.theme = themeToggle.value;
     settings.countdown = countdownToggle.value;
     settings.keepAwake = keepAwakeToggle.value;
 
     localStorage.setItem('c25k_notifications', settings.notifications);
+    localStorage.setItem('c25k_backgroundNotifications', settings.backgroundNotifications);
     localStorage.setItem('c25k_theme', settings.theme);
     localStorage.setItem('c25k_countdown', settings.countdown);
     localStorage.setItem('c25k_keepAwake', settings.keepAwake);
+
+    // Request notification permission if needed
+    if (settings.backgroundNotifications === 'on' && notificationPermission !== 'granted') {
+        requestNotificationPermission();
+    }
 
     applySettings();
     showNotification('Settings saved');
@@ -762,6 +779,15 @@ function updateAudioVisualization(active, amplification = 1) {
 
 // Announce phase change
 function announcePhaseChange(phase) {
+    // Display the phase name as notification
+    showNotification(`${phase.name} phase started`);
+    
+    // Send background notification if enabled
+    if (settings.backgroundNotifications === 'on' && notificationPermission === 'granted') {
+        // Send notification regardless of visibility state
+        sendBackgroundNotification(phase);
+    }
+    
     if (settings.notifications === 'on') {
         if (phase.type === 'warmUp') {
             playBeep(440, 200); // A4
@@ -778,9 +804,116 @@ function announcePhaseChange(phase) {
             setTimeout(() => playBeep(523.25, 200), 250); // C5
             setTimeout(() => playBeep(440, 350), 500); // A4
         }
+    }
+}
+
+// Check notification permission
+function checkNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.log('This browser does not support notifications');
+        return;
+    }
+    
+    notificationPermission = Notification.permission;
+    
+    if (notificationPermission !== 'granted' && settings.backgroundNotifications === 'on') {
+        showNotification('Please enable notifications for phase alerts');
+    }
+}
+
+// Request notification permission
+function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.log('This browser does not support notifications');
+        return;
+    }
+    
+    Notification.requestPermission().then(permission => {
+        notificationPermission = permission;
+        if (permission === 'granted') {
+            showNotification('Background notifications enabled');
+        }
+    });
+}
+
+// Register service worker
+async function registerServiceWorker() {
+    try {
+        if ('serviceWorker' in navigator) {
+            const registration = await navigator.serviceWorker.register('/service-worker.js');
+            console.log('Service Worker registered with scope:', registration.scope);
+            swRegistration = registration;
+            
+            // Check notification permission after service worker is registered
+            checkNotificationPermission();
+        }
+    } catch (error) {
+        console.error('Service Worker registration failed:', error);
+    }
+}
+
+// Send background notification using the service worker
+function sendBackgroundNotification(phase) {
+    if (!('Notification' in window) || notificationPermission !== 'granted') {
+        return;
+    }
+    
+    // Create notification icon based on phase type
+    let icon = '';
+    let body = '';
+    
+    switch (phase.type) {
+        case 'warmUp':
+            icon = '🔥';
+            body = 'Time to warm up!';
+            break;
+        case 'run':
+            icon = '🏃';
+            body = 'Start running now!';
+            break;
+        case 'walk':
+            icon = '🚶';
+            body = 'Walking phase started.';
+            break;
+        case 'coolDown':
+            icon = '❄️';
+            body = 'Cool down phase started.';
+            break;
+    }
+    
+    const options = {
+        body: body,
+        icon: 'favicon.ico',
+        badge: 'favicon.ico',
+        tag: 'c25k-phase-change',
+        vibrate: [200, 100, 200],
+        requireInteraction: false,
+        actions: [
+            {
+                action: 'close',
+                title: 'Dismiss'
+            }
+        ]
+    };
+    
+    // If service worker is available, use it to display the notification
+    if (swRegistration && 'showNotification' in swRegistration) {
+        swRegistration.showNotification(`${phase.name} Phase`, options);
+    } else if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        // Send message to service worker
+        navigator.serviceWorker.controller.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: `${phase.name} Phase`,
+            options: options
+        });
+    } else {
+        // Fallback to regular notification API
+        const notification = new Notification(`${phase.name} Phase`, options);
         
-        // Display the phase name as notification too
-        showNotification(`${phase.name} phase started`);
+        // Auto close after 5 seconds
+        setTimeout(() => {
+            notification.close();
+        }, 5000);
     }
 }
 
@@ -936,6 +1069,11 @@ function startWorkout() {
     // Initialize audio context (need user interaction first)
     initializeAudio();
     
+    // Request notification permission if background notifications are enabled
+    if (settings.backgroundNotifications === 'on' && notificationPermission !== 'granted') {
+        requestNotificationPermission();
+    }
+    
     // Get current workout schedule (test workout or regular)
     const workout = isTestWorkout ? testWorkout : c25kProgram[selectedWeek].workouts[selectedWorkout];
     
@@ -943,6 +1081,9 @@ function startWorkout() {
     if (currentPhaseIndex === 0) {
         startPhase(workout.schedule[currentPhaseIndex]);
     }
+    
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     // Start or resume the main timer
     timer = setInterval(updateTimer, 1000);
@@ -1107,6 +1248,9 @@ function stopWorkout() {
         clearInterval(timer);
         timer = null;
     }
+    
+    // Remove visibility change listener
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
     
     // Stop any ongoing sounds
     stopAllSounds();
@@ -1799,19 +1943,58 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Handle visibility change for notifications
+function handleVisibilityChange() {
+    if (document.visibilityState === 'hidden' && isRunning) {
+        // App is in background, prepare for background notifications
+        if (settings.backgroundNotifications === 'on' && notificationPermission === 'granted') {
+            const workout = isTestWorkout ? testWorkout : c25kProgram[selectedWeek].workouts[selectedWorkout];
+            const currentPhase = workout.schedule[currentPhaseIndex];
+            
+            // Show notification with current phase and time remaining
+            const options = {
+                body: `${currentPhase.name} phase - ${formatTime(timeRemaining)} remaining`,
+                icon: 'favicon.ico',
+                badge: 'favicon.ico',
+                tag: 'c25k-running',
+                vibrate: [100],
+                requireInteraction: false
+            };
+            
+            // Use service worker if available
+            if (swRegistration && 'showNotification' in swRegistration) {
+                swRegistration.showNotification('C25K Workout Running', options);
+            } else if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'SHOW_NOTIFICATION',
+                    title: 'C25K Workout Running',
+                    options: options
+                });
+            } else {
+                // Fallback to regular notification
+                const notification = new Notification('C25K Workout Running', options);
+                setTimeout(() => notification.close(), 3000);
+            }
+        }
+    }
+}
+
 // Initialize app
 function initApp() {
-    generateWorkoutSelectors();
-    applySettings();
-    createAudioVisualization();
-    loadAchievements();
-    setupTabs();
-    
-    // Check for any new achievements based on existing data
-    setTimeout(() => checkAchievements(), 1000);
-    
-    // Clear any lingering timers on page load
-    clearAllTimers();
+    // Register service worker first
+    registerServiceWorker().then(() => {
+        generateWorkoutSelectors();
+        applySettings();
+        createAudioVisualization();
+        loadAchievements();
+        setupTabs();
+        
+        // Check for any new achievements based on existing data
+        setTimeout(() => checkAchievements(), 1000);
+        
+        // Clear any lingering timers on page load
+        clearAllTimers();
+    });
 }
 
 // Run initialization
