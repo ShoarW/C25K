@@ -840,9 +840,19 @@ function requestNotificationPermission() {
 async function registerServiceWorker() {
     try {
         if ('serviceWorker' in navigator) {
-            const registration = await navigator.serviceWorker.register('/service-worker.js');
+            const registration = await navigator.serviceWorker.register('/C25K/service-worker.js');
             console.log('Service Worker registered with scope:', registration.scope);
             swRegistration = registration;
+            
+            // Set up message listener for service worker
+            navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+            
+            // Sync with service worker in case workout is already running
+            if (navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'SYNC_STATE'
+                });
+            }
             
             // Check notification permission after service worker is registered
             checkNotificationPermission();
@@ -850,6 +860,197 @@ async function registerServiceWorker() {
     } catch (error) {
         console.error('Service Worker registration failed:', error);
     }
+}
+
+// Handle messages from service worker
+function handleServiceWorkerMessage(event) {
+    if (!event.data) return;
+    
+    switch (event.data.type) {
+        case 'TIMER_UPDATE':
+            // Update timer and UI based on service worker data
+            updateTimerFromServiceWorker(event.data.data);
+            break;
+            
+        case 'PHASE_CHANGE':
+            // Handle phase change notification from service worker
+            handlePhaseChangeFromServiceWorker(event.data.data);
+            break;
+            
+        case 'COUNTDOWN':
+            // Handle countdown notification
+            handleCountdownFromServiceWorker(event.data.data);
+            break;
+            
+        case 'WORKOUT_COMPLETE':
+            // Handle workout completion
+            handleWorkoutCompleteFromServiceWorker();
+            break;
+            
+        case 'WORKOUT_STOPPED':
+            // Handle workout stopped
+            handleWorkoutStoppedFromServiceWorker();
+            break;
+            
+        case 'WORKOUT_RESET':
+            // Handle workout reset
+            handleWorkoutResetFromServiceWorker();
+            break;
+            
+        case 'WORKOUT_STATE_SYNC':
+            // Sync app state with service worker state
+            syncStateWithServiceWorker(event.data.data);
+            break;
+    }
+}
+
+// Update timer display based on service worker data
+function updateTimerFromServiceWorker(data) {
+    if (!isRunning) return;
+    
+    timeRemaining = data.timeRemaining;
+    elapsedTime = data.elapsedTime;
+    currentPhaseIndex = data.currentPhaseIndex;
+    
+    // Update UI
+    timerDisplay.textContent = formatTime(timeRemaining);
+    
+    // Update progress bar
+    const progressPercentage = data.progress;
+    progressBar.style.width = `${progressPercentage}%`;
+    progressBar.textContent = `${Math.round(progressPercentage)}%`;
+}
+
+// Handle phase change notification from service worker
+function handlePhaseChangeFromServiceWorker(data) {
+    if (!isRunning) return;
+    
+    const phase = data.phase;
+    currentPhaseIndex = data.phaseIndex;
+    
+    // Update phase display
+    updatePhaseDisplay(phase);
+    
+    // Play sounds if enabled
+    if (settings.notifications === 'on') {
+        if (phase.type === 'warmUp') {
+            playBeep(440, 200); // A4
+            setTimeout(() => playBeep(523.25, 200), 250); // C5
+            setTimeout(() => playBeep(659.25, 350), 500); // E5
+        } else if (phase.type === 'run') {
+            playBeep(659.25, 200); // E5
+            setTimeout(() => playBeep(783.99, 350), 250); // G5
+        } else if (phase.type === 'walk') {
+            playBeep(523.25, 200); // C5
+            setTimeout(() => playBeep(440, 350), 250); // A4
+        } else if (phase.type === 'coolDown') {
+            playBeep(659.25, 200); // E5
+            setTimeout(() => playBeep(523.25, 200), 250); // C5
+            setTimeout(() => playBeep(440, 350), 500); // A4
+        }
+    }
+    
+    // Show UI notification
+    showNotification(`${phase.name} phase started`);
+}
+
+// Handle countdown notification from service worker
+function handleCountdownFromServiceWorker(data) {
+    if (!isRunning || settings.countdown !== 'on') return;
+    
+    // Show next phase preview during countdown
+    if (data.nextPhaseIndex !== null) {
+        const workout = isTestWorkout ? testWorkout : c25kProgram[selectedWeek].workouts[selectedWorkout];
+        const nextPhase = workout.schedule[data.nextPhaseIndex];
+        
+        // Show the next phase preview
+        nextPhaseName.textContent = nextPhase.name;
+        nextPhasePreview.className = 'next-phase-preview show';
+        nextPhasePreview.classList.add(`next-phase-${nextPhase.type}`);
+        
+        // Play countdown sound
+        // Base frequency depends on upcoming phase type
+        let baseFrequency;
+        if (nextPhase.type === 'run') {
+            baseFrequency = 523; // Higher pitch for run
+        } else if (nextPhase.type === 'walk') {
+            baseFrequency = 392; // Lower pitch for walk
+        } else if (nextPhase.type === 'coolDown') {
+            baseFrequency = 349; // Even lower for cool down
+        } else {
+            baseFrequency = 440; // Default pitch
+        }
+        
+        // Pitch increases as we get closer to zero
+        const pitch = baseFrequency + ((5 - data.timeRemaining) * 30);
+        playBeep(pitch, 100);
+    } else {
+        // This is the last phase
+        const pitch = 440 + ((5 - data.timeRemaining) * 30);
+        playBeep(pitch, 100);
+    }
+}
+
+// Handle workout completion from service worker
+function handleWorkoutCompleteFromServiceWorker() {
+    if (!isRunning) return;
+    
+    // Stop workout and update UI
+    stopWorkout();
+    
+    // Play completion sound
+    if (settings.notifications === 'on') {
+        playBeep(523.25, 300); // C5
+        setTimeout(() => playBeep(659.25, 300), 350); // E5
+        setTimeout(() => playBeep(783.99, 300), 700); // G5
+        setTimeout(() => playBeep(1046.50, 500), 1050); // C6
+    }
+    
+    // Show completion modal for real workouts
+    if (!isTestWorkout) {
+        openCompletionModal();
+    } else {
+        // Reset workout immediately for test mode
+        resetWorkout();
+        showNotification('Test workout completed!');
+        isTestWorkout = false;
+    }
+}
+
+// Handle workout stopped from service worker
+function handleWorkoutStoppedFromServiceWorker() {
+    stopWorkout();
+}
+
+// Handle workout reset from service worker
+function handleWorkoutResetFromServiceWorker() {
+    resetWorkout();
+}
+
+// Sync app state with service worker state
+function syncStateWithServiceWorker(state) {
+    if (!state.isRunning) return;
+    
+    // Restore app state from service worker
+    isRunning = true;
+    timeRemaining = state.timeRemaining;
+    elapsedTime = state.elapsedTime;
+    currentPhaseIndex = state.currentPhaseIndex;
+    
+    // Update UI
+    timerDisplay.textContent = formatTime(timeRemaining);
+    
+    const progressPercentage = (state.elapsedTime / state.totalTime) * 100;
+    progressBar.style.width = `${progressPercentage}%`;
+    progressBar.textContent = `${Math.round(progressPercentage)}%`;
+    
+    // Update phase display
+    updatePhaseDisplay(state.currentPhase);
+    
+    // Update buttons
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    resetBtn.disabled = true;
 }
 
 // Send background notification using the service worker
@@ -1047,59 +1248,6 @@ function updateWorkoutInfo() {
     }
 }
 
-// Start workout
-function startWorkout() {
-    if (selectedWeek === null || selectedWorkout === null) {
-        showNotification('Please select a workout first');
-        return;
-    }
-
-    // Only start if not already running
-    if (isRunning) {
-        console.log('Workout already running');
-        return;
-    }
-    
-    // Clear any existing timers to prevent doubling
-    if (timer) {
-        clearInterval(timer);
-        timer = null;
-    }
-    
-    // Initialize audio context (need user interaction first)
-    initializeAudio();
-    
-    // Request notification permission if background notifications are enabled
-    if (settings.backgroundNotifications === 'on' && notificationPermission !== 'granted') {
-        requestNotificationPermission();
-    }
-    
-    // Get current workout schedule (test workout or regular)
-    const workout = isTestWorkout ? testWorkout : c25kProgram[selectedWeek].workouts[selectedWorkout];
-    
-    // Start first phase if not already started
-    if (currentPhaseIndex === 0) {
-        startPhase(workout.schedule[currentPhaseIndex]);
-    }
-    
-    // Listen for visibility changes
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Start or resume the main timer
-    timer = setInterval(updateTimer, 1000);
-    isRunning = true;
-    
-    // Update UI
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    resetBtn.disabled = true;
-
-    // Apply wake lock if needed
-    if (settings.keepAwake === 'on') {
-        requestWakeLock();
-    }
-}
-
 // Start a phase
 function startPhase(phase) {
     // Set time remaining
@@ -1164,7 +1312,7 @@ function showNextPhasePreview() {
     }
 }
 
-// Single continuous timer function
+// Single continuous timer function (fallback if service worker isn't available)
 function updateTimer() {
     if (!isRunning) return;
     
@@ -1239,9 +1387,98 @@ function updateTimer() {
     }
 }
 
+// Start workout
+function startWorkout() {
+    if (selectedWeek === null || selectedWorkout === null) {
+        showNotification('Please select a workout first');
+        return;
+    }
+
+    // Only start if not already running
+    if (isRunning) {
+        console.log('Workout already running');
+        return;
+    }
+    
+    // Clear any existing timers to prevent doubling
+    if (timer) {
+        clearInterval(timer);
+        timer = null;
+    }
+    
+    // Initialize audio context (need user interaction first)
+    initializeAudio();
+    
+    // Request notification permission if background notifications are enabled
+    if (settings.backgroundNotifications === 'on' && notificationPermission !== 'granted') {
+        requestNotificationPermission();
+    }
+    
+    // Get current workout schedule (test workout or regular)
+    const workout = isTestWorkout ? testWorkout : c25kProgram[selectedWeek].workouts[selectedWorkout];
+    
+    // Start the workout timer in the service worker
+    if (navigator.serviceWorker.controller) {
+        // Calculate total workout time
+        totalWorkoutTime = workout.schedule.reduce((total, phase) => total + phase.duration, 0);
+        
+        // Set local state
+        isRunning = true;
+        currentPhaseIndex = 0;
+        timeRemaining = workout.schedule[0].duration;
+        elapsedTime = 0;
+        
+        // Send workout data to service worker
+        navigator.serviceWorker.controller.postMessage({
+            type: 'START_WORKOUT',
+            timeRemaining: workout.schedule[0].duration,
+            totalTime: totalWorkoutTime,
+            elapsedTime: 0,
+            currentPhaseIndex: 0,
+            schedule: workout.schedule,
+            currentPhase: workout.schedule[0]
+        });
+        
+        // Update phase display for the first phase
+        updatePhaseDisplay(workout.schedule[0]);
+        announcePhaseChange(workout.schedule[0]);
+    } else {
+        // Fallback to local timer if service worker is not available
+        if (currentPhaseIndex === 0) {
+            startPhase(workout.schedule[currentPhaseIndex]);
+        }
+        
+        // Start or resume the main timer
+        timer = setInterval(updateTimer, 1000);
+        isRunning = true;
+    }
+    
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Update UI
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    resetBtn.disabled = true;
+
+    // Apply wake lock if needed
+    if (settings.keepAwake === 'on') {
+        requestWakeLock();
+    }
+}
+
 // Stop workout
 function stopWorkout() {
+    if (!isRunning) return;
+    
     isRunning = false;
+    
+    // Tell service worker to stop the timer
+    if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+            type: 'STOP_WORKOUT'
+        });
+    }
     
     // Ensure timer is properly cleared
     if (timer) {
@@ -1273,6 +1510,13 @@ function stopWorkout() {
 // Reset workout
 function resetWorkout() {
     stopWorkout();
+    
+    // Tell service worker to reset the workout
+    if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+            type: 'RESET_WORKOUT'
+        });
+    }
     
     currentPhaseIndex = 0;
     timeRemaining = 0;
