@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C25K Training App</title>
+    <link rel="stylesheet" href="main.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="settings-container">
+                <button class="settings-btn" id="settingsBtn">
+                    ⚙️ Settings
+                </button>
+                <div class="settings-panel" id="settingsPanel">
+                    <div class="form-group">
+                        <label for="notificationToggle">Sound Notifications</label>
+                        <select id="notificationToggle">
+                            <option value="on">On</option>
+                            <option value="off">Off</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="themeToggle">Theme</label>
+                        <select id="themeToggle">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="countdownToggle">Countdown Timer</label>
+                        <select id="countdownToggle">
+                            <option value="on">On</option>
+                            <option value="off">Off</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="keepAwakeToggle">Keep Screen Awake</label>
+                        <select id="keepAwakeToggle">
+                            <option value="on">On</option>
+                            <option value="off" selected>Off</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+                </div>
+            </div>
+
+            <div class="program-selector">
+                <div class="week-dropdown">
+                    <button class="week-select-btn" id="weekSelectBtn">Select a Week</button>
+                    <div class="week-dropdown-menu" id="weekDropdownMenu">
+                        <!-- Week items will be dynamically added here -->
+                    </div>
+                </div>
+
+                <div class="workout-selector-container">
+                    <div class="workout-selector" id="workoutSelector">
+                        <!-- Workout buttons will be dynamically added here -->
+                    </div>
+                </div>
+                <button class="mark-completed-btn" id="markCompletedBtn" style="display: none;">Mark as Completed</button>
+            </div>
+
+            <div class="workout-info">
+                <h3 class="workout-title" id="workoutTitle">Select a Workout</h3>
+                <p class="workout-description" id="workoutDescription">
+                    Choose a week and workout to begin your C25K training program.
+                </p>
+            </div>
+
+            <div class="phase-display" id="phaseDisplay">
+                <div class="current-phase">Ready to start</div>
+                <div class="next-phase-preview" id="nextPhasePreview">
+                    <div class="next-label">NEXT:</div>
+                    <div class="next-phase-name" id="nextPhaseName"></div>
+                </div>
+            </div>
+
+            <div class="timer-display" id="timerDisplay">00:00</div>
+
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+            </div>
+
+            <div class="audio-visualization" id="audioVisualization">
+                <!-- Audio bars will be added dynamically -->
+            </div>
+
+            <div class="control-buttons">
+                <button class="btn btn-secondary" id="resetBtn" disabled>Reset</button>
+                <button class="btn btn-primary" id="startBtn">Start</button>
+                <button class="btn btn-danger" id="stopBtn" disabled>Stop</button>
+            </div>
+        </div>
+
+        <div class="card tabbed-content">
+            <div class="tab-navigation">
+                <button class="tab-btn active" data-tab="workouts">Completed Workouts</button>
+                <button class="tab-btn" data-tab="achievements">Achievements</button>
+            </div>
+            
+            <div class="tab-content">
+                <div class="tab-pane active" id="workoutsTab">
+                    <ul class="workout-log" id="workoutLog">
+                        <!-- Completed workouts will be added here -->
+                    </ul>
+                </div>
+                
+                <div class="tab-pane" id="achievementsTab">
+                    <div class="achievements-container" id="achievementsContainer">
+                        <!-- Achievements will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="completionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Workout Complete!</h3>
+                <button class="close-btn" id="closeModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Congratulations! You've completed your workout.</p>
+                <p>How did it feel?</p>
+                <div class="form-group">
+                    <label for="workoutRating">Rate your workout:</label>
+                    <select id="workoutRating">
+                        <option value="1">Very Difficult</option>
+                        <option value="2">Difficult</option>
+                        <option value="3" selected>Moderate</option>
+                        <option value="4">Easy</option>
+                        <option value="5">Very Easy</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="workoutNotes">Notes (optional):</label>
+                    <input type="text" id="workoutNotes" placeholder="Add notes about your workout">
+                </div>
+                <button class="btn btn-primary" id="saveWorkoutBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification">
+        Notification message here
+    </div>
+
+    <div class="achievement-modal" id="achievementModal">
+        <div class="achievement-modal-content">
+            <div class="achievement-trophy">🏆</div>
+            <h2 class="achievement-modal-title">Achievement Unlocked!</h2>
+            <div class="achievement-modal-icon" id="achievementModalIcon"></div>
+            <div class="achievement-modal-name" id="achievementModalName"></div>
+            <div class="achievement-modal-description" id="achievementModalDescription"></div>
+            <button class="achievement-modal-close" id="achievementModalClose">OK</button>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
