@@ -2,7 +2,7 @@
   "name": "C25K Training App",
   "short_name": "C25K",
   "description": "Couch to 5K training program application",
-  "start_url": "/",
+  "start_url": "/C25K/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4361ee",
