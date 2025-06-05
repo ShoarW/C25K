@@ -1249,19 +1249,26 @@ function updateWorkoutInfo() {
         // Render timeline for selected workout
         renderTimeline(workout.schedule);
         timelineIndicator.style.left = '0%';
+        progressBar.style.width = '0%';
+        progressBar.textContent = '';
     } else {
         workoutTitle.textContent = 'Select a Workout';
         workoutDescription.textContent = 'Choose a week and workout to begin your C25K training program.';
 
         // Clear timeline if no workout selected
         timeline.innerHTML = '';
+        timeline.appendChild(progressBar);
+        timeline.appendChild(timelineIndicator);
         timelineIndicator.style.left = '0%';
+        progressBar.style.width = '0%';
+        progressBar.textContent = '';
     }
 }
 
 // Render the timeline segments based on the workout schedule
 function renderTimeline(schedule) {
     timeline.innerHTML = '';
+    timeline.appendChild(progressBar);
     schedule.forEach((phase, index) => {
         const segment = document.createElement('div');
         segment.classList.add('timeline-segment', `timeline-${phase.type}`);
