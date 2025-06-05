@@ -439,6 +439,8 @@ const phaseDisplay = document.getElementById('phaseDisplay');
 const nextPhasePreview = document.getElementById('nextPhasePreview');
 const nextPhaseName = document.getElementById('nextPhaseName');
 const progressBar = document.getElementById('progressBar');
+const timeline = document.getElementById('timeline');
+const timelineIndicator = document.getElementById('timelineIndicator');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const resetBtn = document.getElementById('resetBtn');
@@ -919,6 +921,7 @@ function updateTimerFromServiceWorker(data) {
     const progressPercentage = data.progress;
     progressBar.style.width = `${progressPercentage}%`;
     progressBar.textContent = `${Math.round(progressPercentage)}%`;
+    timelineIndicator.style.left = `${progressPercentage}%`;
 }
 
 // Handle phase change notification from service worker
@@ -1242,9 +1245,46 @@ function updateWorkoutInfo() {
         
         // Calculate total workout time
         totalWorkoutTime = workout.schedule.reduce((total, phase) => total + phase.duration, 0);
+
+        // Render timeline for selected workout
+        renderTimeline(workout.schedule);
+        timelineIndicator.style.left = '0%';
+        progressBar.style.width = '0%';
+        progressBar.textContent = '';
     } else {
         workoutTitle.textContent = 'Select a Workout';
         workoutDescription.textContent = 'Choose a week and workout to begin your C25K training program.';
+
+        // Clear timeline if no workout selected
+        timeline.innerHTML = '';
+        timeline.appendChild(progressBar);
+        timeline.appendChild(timelineIndicator);
+        timelineIndicator.style.left = '0%';
+        progressBar.style.width = '0%';
+        progressBar.textContent = '';
+    }
+}
+
+// Render the timeline segments based on the workout schedule
+function renderTimeline(schedule) {
+    timeline.innerHTML = '';
+    timeline.appendChild(progressBar);
+    schedule.forEach((phase, index) => {
+        const segment = document.createElement('div');
+        segment.classList.add('timeline-segment', `timeline-${phase.type}`);
+        segment.style.flexGrow = phase.duration;
+        segment.dataset.index = index;
+        timeline.appendChild(segment);
+    });
+    timeline.appendChild(timelineIndicator);
+}
+
+// Highlight the current segment in the timeline
+function highlightTimelineSegment(index) {
+    const segments = timeline.querySelectorAll('.timeline-segment');
+    segments.forEach(seg => seg.classList.remove('active'));
+    if (segments[index]) {
+        segments[index].classList.add('active');
     }
 }
 
@@ -1286,6 +1326,8 @@ function updatePhaseDisplay(phase) {
     if (currentPhaseElement) {
         currentPhaseElement.textContent = phaseText;
     }
+
+    highlightTimelineSegment(currentPhaseIndex);
 }
 
 // Show next phase preview
@@ -1324,6 +1366,7 @@ function updateTimer() {
     const progressPercentage = (elapsedTime / totalWorkoutTime) * 100;
     progressBar.style.width = `${progressPercentage}%`;
     progressBar.textContent = `${Math.round(progressPercentage)}%`;
+    timelineIndicator.style.left = `${progressPercentage}%`;
     
     // Check if we need to transition to the next phase
     if (timeRemaining <= 0) {
@@ -1442,12 +1485,16 @@ function startWorkout() {
         // Update phase display for the first phase
         updatePhaseDisplay(workout.schedule[0]);
         announcePhaseChange(workout.schedule[0]);
+        highlightTimelineSegment(0);
+        timelineIndicator.style.left = '0%';
     } else {
         // Fallback to local timer if service worker is not available
         if (currentPhaseIndex === 0) {
             startPhase(workout.schedule[currentPhaseIndex]);
         }
-        
+
+        timelineIndicator.style.left = '0%';
+
         // Start or resume the main timer
         timer = setInterval(updateTimer, 1000);
         isRunning = true;
@@ -1537,6 +1584,8 @@ function resetWorkout() {
     
     progressBar.style.width = '0%';
     progressBar.textContent = '';
+    timelineIndicator.style.left = '0%';
+    highlightTimelineSegment(-1);
     
     // Hide next phase preview
     nextPhasePreview.classList.remove('show');
