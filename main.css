@@ -353,8 +353,9 @@ h1 {
     transition: width 1s linear;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     color: white;
+    mix-blend-mode: difference;
     font-size: 0.7rem;
     font-weight: 600;
     pointer-events: none;
@@ -363,7 +364,7 @@ h1 {
 }
 
 .dark-mode .timeline-progress {
-    background: linear-gradient(90deg, #4361ee, #3a0ca3);
+    background: linear-gradient(90deg, rgba(67, 98, 238, 0.205), rgba(57, 12, 163, 0.205));
 }
 
 .timeline-segment {
@@ -396,6 +397,7 @@ h1 {
     bottom: -2px;
     width: 2px;
     background-color: var(--text-color);
+    mix-blend-mode: difference;
     left: 0;
     transition: left 1s linear;
 }
